@@ -42,7 +42,7 @@ impl Service<shared::MainRequest> for MainService {
         Ok(()).into()
     }
 
-    fn call(&mut self, req: usize) -> Self::Future {
+    fn call(&mut self, req: shared::MainRequest) -> Self::Future {
         self.num_times_called += 1;
 
         let times = self.num_times_called;
@@ -52,12 +52,18 @@ impl Service<shared::MainRequest> for MainService {
         // let wait_ms = Duration::from_millis(10);
         let id = self.id;
 
-        Box::pin(async move {
-            tokio::time::sleep(Duration::from_millis(req as u64)).await;
-            Ok(format!(
-                "(String) You said `{}`, I been called {} times (My id is: {})",
+        let delay = req.request;
+        let response = shared::MainResponse::new(
+            req.clone(),
+            format!(
+                "(String) You said `{:?}`, I been called {} times (My id is: {})",
                 req, times, id
-            ))
+            ),
+        );
+
+        Box::pin(async move {
+            tokio::time::sleep(Duration::from_millis(delay as u64)).await;
+            Ok(response)
         })
     }
 }

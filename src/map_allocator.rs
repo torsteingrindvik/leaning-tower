@@ -16,16 +16,16 @@ use crate::{server, server_service, shared, vocal_semaphore::VocalSemaphore};
 #[derive(Debug)]
 pub struct MapAllocatorService {
     num_times_called: usize,
-    permits: HashMap<shared::HandshakeRequest, Arc<Semaphore>>,
+    permits: HashMap<String, Arc<Semaphore>>,
 }
 
 impl MapAllocatorService {
-    pub fn new(resources: Vec<shared::HandshakeRequest>) -> Self {
+    pub fn new(resources: Vec<&'static str>) -> Self {
         Self {
             num_times_called: 0,
             permits: resources
                 .into_iter()
-                .map(|resource| (resource, Arc::new(Semaphore::new(1))))
+                .map(|resource| (resource.to_string(), Arc::new(Semaphore::new(1))))
                 .collect(),
         }
     }
@@ -40,18 +40,18 @@ impl Service<shared::HandshakeRequest> for MapAllocatorService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: shared::HandshakeRequest) -> Self::Future {
+    fn call(&mut self, tagged_request: shared::HandshakeRequest) -> Self::Future {
         self.num_times_called += 1;
 
         let res = self
             .permits
-            .get(&req)
+            .get(&tagged_request.request)
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("No such resource: `{}`", req));
+            .ok_or_else(|| anyhow::anyhow!("No such resource: `{:?}`", tagged_request));
 
         let id = self.num_times_called;
-        let label = format!("#{id}-{req}");
-        let label_move = format!("#{id}-{req}");
+        let label = format!("#{id}-{:?}", tagged_request);
+        let label_move = label.clone();
 
         Box::pin(
             async move {
@@ -61,7 +61,7 @@ impl Service<shared::HandshakeRequest> for MapAllocatorService {
                         sem.acquire().instrument(info_span!("acquire")).await?;
 
                         info!(%label_move, "Making new transport for acquired");
-                        server::spawn_new_transport(server_service::MainService::new(id, sem))
+                        server::spawn_new_transport(tagged_request, server_service::MainService::new(id, sem))
                             .instrument(info_span!("spawn-transport"))
                             .await
                     }

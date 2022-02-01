@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_bincode::AsyncBincodeStream;
 use serde::Serialize;
 use tokio::net::TcpListener;
-use tokio_tower::pipeline;
+use tokio_tower::multiplex;
 use tower::Service;
 use tracing::{debug, error, info, info_span, Instrument};
 
@@ -40,7 +40,7 @@ where
     info!(?peer, "Peer accepted");
 
     let transport = AsyncBincodeStream::from(stream).for_async();
-    let server = pipeline::server::Server::new(transport, service);
+    let server = multiplex::server::Server::new(transport, service);
 
     match server.await {
         Ok(()) => debug!(?peer, "Server stopped"),
@@ -48,7 +48,7 @@ where
     }
 }
 
-pub(crate) async fn spawn_new_transport<S, T>(service: S) -> Result<shared::HandshakeResponse>
+pub(crate) async fn spawn_new_transport<S, T>(request: shared::HandshakeRequest, service: S) -> Result<shared::HandshakeResponse>
 where
     S: Service<T> + Send + 'static,
     <S as Service<T>>::Response: Serialize + Send,
@@ -65,5 +65,7 @@ where
     // TODO: What's the simplest way to just store away handles and check them for panics?
     tokio::spawn(accept_and_await(tcp, service).instrument(info_span!("peer-mux-handle", port)));
 
-    Ok(port)
+    let response = shared::HandshakeResponse::new(request, port);
+
+    Ok(response)
 }

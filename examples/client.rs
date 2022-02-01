@@ -1,29 +1,27 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use leaning_tower::client;
+use leaning_tower::{client, shared};
 use tower::{buffer::Buffer, MakeService, ServiceExt};
 use tracing::{error, info};
 
-// ["Ding".into(), "Bong".into(), "Gang".into()].into(),
-
-fn make_request(index: usize) -> String {
-    match index % 3 {
+fn make_handshake_request(index: usize) -> (String, shared::HandshakeRequest) {
+    let string: String = match index % 3 {
         0 => "Ding".into(),
         1 => "Bong".into(),
-        2 => "Ding".into(),
+        2 => "Gang".into(),
         _ => unreachable!(),
-    }
+    };
+
+    let req = shared::HandshakeRequest::new(string.clone());
+
+    (string, req)
 }
 
-// fn make_request(index: usize) -> String {
-//     match index % 3 {
-//         0 => "Ding".into(),
-//         1 => "Bong".into(),
-//         2 => "Gang".into(),
-//         _ => unreachable!(),
-//     }
-// }
+fn make_main_request(delay: usize) -> shared::MainRequest {
+    shared::MainRequest::new(delay / 200)
+}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,12 +32,12 @@ async fn main() -> Result<()> {
     //      - Do handshake, this returns a service to a server on another port
     //      -
     //  - Await all clients
-    const NUM_ROUNDS: usize = 1;
+    const NUM_ROUNDS: usize = 1000;
 
-    const NUM_CLIENTS: usize = 5;
+    const NUM_CLIENTS: usize = 10;
 
     // After a separate connection is established, how many messages loops to do.
-    const NUM_MESSAGES: usize = 100;
+    const NUM_MESSAGES: usize = 1000;
 
     let handshaker = client::connect().await?;
     let handshaker = handshaker.and_then(client::establish);
@@ -56,12 +54,12 @@ async fn main() -> Result<()> {
             let client_id = (round * NUM_CLIENTS) + index + 1;
 
             let handle = tokio::spawn(async move {
-                let req = make_request(index);
+                let (label, req) = make_handshake_request(index);
                 let client_res = client_handshaker
                     .ready()
                     .await
                     .expect("Handshaker not ready")
-                    .make_service(req.clone())
+                    .make_service(req)
                     .await;
 
                 let mut client = match client_res {
@@ -76,15 +74,11 @@ async fn main() -> Result<()> {
                 // which will be used server side to simply
                 // do an (async) sleep before responding
                 for delay in 0..NUM_MESSAGES {
-                    let _response = client::established_call(
-                        &mut client,
-                        // format!("Hi from client #{}", client_id),
-                        delay,
-                    )
-                    .await
-                    .expect("Client call should be ok");
+                    let _response = client::established_call(&mut client, make_main_request(delay))
+                        .await
+                        .expect("Client call should be ok");
                 }
-                info!(?client_id, ?req, "Done :-)");
+                info!(?client_id, ?label, "Done :-)");
             });
 
             handles.push(handle);
