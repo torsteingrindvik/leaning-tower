@@ -1,21 +1,30 @@
-use anyhow::Result;
+use serde::{de::DeserializeOwned, Serialize};
 use tokio::net::TcpListener;
-use tower::buffer::Buffer;
+use tower::{buffer::Buffer, Service};
 use tracing::{error, info, info_span, Instrument};
 
-use crate::{map_allocator, server_peer_handler};
+use crate::{allocator, resource_filter::Describable, server_peer_handler};
 
-pub async fn run(bind_address: &str) -> Result<()> {
+pub async fn run<S, R, HR>(
+    bind_address: &str,
+    services: Vec<S>,
+) -> std::result::Result<(), String>
+where
+    S: Service<R> + Send + 'static,
+    S: Describable<HR>,
+    R: Send + 'static,
+    S::Future: Send,
+    S::Error: Send + Sync + Into<tower::BoxError>,
+    HR: Send + DeserializeOwned + Serialize + std::fmt::Debug + 'static + Clone,
+{
     info!("Initializing server running at `{bind_address}`");
 
-    let tcp = TcpListener::bind(bind_address).await?;
+    // let tcp = TcpListener::bind(bind_address).await?;
+    let tcp = TcpListener::bind(bind_address)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    let allocator = Buffer::new(
-        map_allocator::MapAllocatorService::new(
-            ["Ding".into(), "Bong".into(), "Gang".into()].into(),
-        ),
-        10,
-    );
+    let allocator = Buffer::new(allocator::AllocatorService::new(services), 10);
 
     let mut clients = 0;
     loop {
@@ -27,15 +36,16 @@ pub async fn run(bind_address: &str) -> Result<()> {
             }
         };
 
-        let peer_service = allocator.clone();
+        let allocator = allocator.clone();
         clients += 1;
 
         tokio::spawn(
-            server_peer_handler::handle(stream, peer_service).instrument(info_span!(
-                "peer-handler",
-                clients,
-                ?peer
-            )),
+            // server_peer_handler::handle(stream, allocator).instrument(info_span!(
+            //     "peer-handler",
+            //     clients,
+            //     ?peer
+            // )),
+            server_peer_handler::handle(stream, allocator),
         );
     }
 }

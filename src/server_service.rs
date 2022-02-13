@@ -52,7 +52,7 @@ impl Service<shared::MainRequest> for MainService {
         // let wait_ms = Duration::from_millis(10);
         let id = self.id;
 
-        let delay = req.request;
+        let delay = req.inner;
         let response = shared::MainResponse::new(
             req.clone(),
             format!(
