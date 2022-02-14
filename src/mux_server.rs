@@ -85,11 +85,11 @@ where
     S::Error: Send + Sync + Into<tower::BoxError> + std::fmt::Debug,
     Req: Clone + Send + DeserializeOwned + 'static,
 {
-    pub async fn once(bind: &str, service: S) -> Result<JoinHandle<()>> {
+    pub async fn once(bind: &str, service: S) -> Result<(JoinHandle<()>, u16)> {
         let rx = TcpListener::bind(bind).await?;
+        let port = rx.local_addr()?.port();
 
         let handle = tokio::spawn(async move {
-            // TODO: Timeout fut
             // This ensure that if the client left, we won't hold onto the
             // semaphore for more than this amount of seconds.
             let timeout_fut = tokio::time::timeout(Duration::from_secs(5), rx.accept());
@@ -105,10 +105,9 @@ where
                     return;
                 }
             };
-            info!("Alrighty");
+            info!(%port, "Client connected, setting up server");
 
             let rx = AsyncBincodeStream::from(rx).for_async();
-
             let server = multiplex::Server::new(rx, Detagger::new(service));
             match server.await {
                 Ok(_) => info!("Done"),
@@ -116,7 +115,7 @@ where
             }
         });
 
-        Ok(handle)
+        Ok((handle, port))
     }
 
     pub async fn run(bind: &str, service: S) -> Result<JoinHandle<()>> {

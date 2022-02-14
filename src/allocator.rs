@@ -3,7 +3,6 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use futures::TryFutureExt;
@@ -11,7 +10,7 @@ use futures_core::Future;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::{AcquireError, OwnedSemaphorePermit, Semaphore};
 use tower::{buffer::Buffer, Service};
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{error, info, info_span, Instrument};
 
 use crate::{mux_server::MuxServer, resource_filter::Describable, shared};
 
@@ -201,8 +200,8 @@ where
                         Ok(((resource, semaphore_permit), _)) => {
                             // TODO: Cycle these
                             // let port = 2345;
-                            let handle = match MuxServer::once("0.0.0.0:0", resource).await {
-                                Ok(handle) => handle,
+                            let (handle, port) = match MuxServer::once("0.0.0.0:0", resource).await {
+                                Ok((handle, port)) => (handle, port),
                                 Err(e) => todo!(),
                             };
 
@@ -216,35 +215,7 @@ where
                                 drop(semaphore_permit)
                             });
 
-                            // tokio::spawn(async move {
-
-                            //     info!("Starting to wait for peer");
-                            //     let server = match timeout_fut.await {
-                            //         Ok(Ok(server)) => server,
-                            //         Ok(Err(e)) => {
-                            //             error!("Problem setting up server: {:?}", e);
-                            //             return;
-                            //         }
-                            //         Err(e) => {
-                            //             error!("Could not accept in time: {:?}", e);
-                            //             return;
-                            //         }
-                            //     };
-                            //     info!("Alrighty");
-
-                            //     match server.serve().await {
-                            //         // TODO: Peer
-                            //         // Ok(()) => debug!(?peer, "Server stopped"),
-                            //         Ok(()) => debug!("Server stopped"),
-                            //         Err(e) => error!("Server stopped with an issue: {:?}", e),
-                            //     }
-
-                            //     // This assures the semaphore was moved into this scope,
-                            //     // and that it drops when the work is done.
-                            //     drop(semaphore_permit)
-                            // });
-
-                            Ok(2345)
+                            Ok(port)
                         }
                         Err(e) => Err(e),
                     }

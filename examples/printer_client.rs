@@ -17,8 +17,9 @@ async fn printer_call(
 async fn allocator_call(
     service: &mut PrinterAllocatorService,
     request: printer_types::PrinterVariant,
-) -> u16 {
-    service.ready().await.unwrap().call(request).await.unwrap()
+) -> PrinterService {
+    let port = service.ready().await.unwrap().call(request).await.unwrap();
+    MuxClient::new(&format!("0.0.0.0:{port}")).await.unwrap()
 }
 
 async fn use_single_resource_server() -> Result<()> {
@@ -39,13 +40,18 @@ async fn use_single_resource_server() -> Result<()> {
 async fn use_many_resources_server() -> Result<()> {
     let mut service: PrinterAllocatorService = MuxClient::new("0.0.0.0:1235").await?;
 
-    let response = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
+    let mut printer_1 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
+    let response = printer_call(&mut printer_1, printer_types::Action::Print).await;
     info!(?response, "Response 1 received");
+    drop(printer_1);
 
-    let response = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
+    let mut printer_2 = allocator_call(&mut service, printer_types::PrinterVariant::BlackAndWhite).await;
+    let response = printer_call(&mut printer_2, printer_types::Action::Print).await;
     info!(?response, "Response 2 received");
+    drop(printer_2);
 
-    let response = allocator_call(&mut service, printer_types::PrinterVariant::BlackAndWhite).await;
+    let mut printer_3 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
+    let response = printer_call(&mut printer_3, printer_types::Action::Print).await;
     info!(?response, "Response 3 received");
 
     Ok(())
