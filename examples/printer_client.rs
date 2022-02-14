@@ -1,25 +1,38 @@
 use anyhow::Result;
 use examples_lib::printer_types;
-use leaning_tower::mux_client::MuxClient;
+use leaning_tower::{allocator_client::AllocatorClientService, mux_client::MuxClient};
 use tower::{Service, ServiceExt};
 use tracing::info;
 
 type PrinterService = MuxClient<printer_types::Action, printer_types::Response>;
-type PrinterAllocatorService = MuxClient<printer_types::PrinterVariant, u16>;
+
+type PrinterAllocatorService =
+    AllocatorClientService<printer_types::PrinterVariant, PrinterService, printer_types::Action>;
 
 async fn printer_call(
     service: &mut PrinterService,
     request: printer_types::Action,
-) -> printer_types::Response {
-    service.ready().await.unwrap().call(request).await.unwrap()
+) -> Result<printer_types::Response> {
+    Ok(service
+        .ready()
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?
+        .call(request)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?)
 }
 
 async fn allocator_call(
     service: &mut PrinterAllocatorService,
     request: printer_types::PrinterVariant,
-) -> PrinterService {
-    let port = service.ready().await.unwrap().call(request).await.unwrap();
-    MuxClient::new(&format!("0.0.0.0:{port}")).await.unwrap()
+) -> Result<PrinterService> {
+    Ok(service
+        .ready()
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?
+        .call(request)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?)
 }
 
 async fn use_single_resource_server() -> Result<()> {
@@ -38,20 +51,21 @@ async fn use_single_resource_server() -> Result<()> {
 }
 
 async fn use_many_resources_server() -> Result<()> {
-    let mut service: PrinterAllocatorService = MuxClient::new("0.0.0.0:1235").await?;
+    let mut service = AllocatorClientService::new("0.0.0.0:1235").await?;
 
-    let mut printer_1 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
-    let response = printer_call(&mut printer_1, printer_types::Action::Print).await;
+    let mut printer_1 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await?;
+    let response = printer_call(&mut printer_1, printer_types::Action::Print).await?;
     info!(?response, "Response 1 received");
     drop(printer_1);
 
-    let mut printer_2 = allocator_call(&mut service, printer_types::PrinterVariant::BlackAndWhite).await;
-    let response = printer_call(&mut printer_2, printer_types::Action::Print).await;
+    let mut printer_2 =
+        allocator_call(&mut service, printer_types::PrinterVariant::BlackAndWhite).await?;
+    let response = printer_call(&mut printer_2, printer_types::Action::Print).await?;
     info!(?response, "Response 2 received");
     drop(printer_2);
 
-    let mut printer_3 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await;
-    let response = printer_call(&mut printer_3, printer_types::Action::Print).await;
+    let mut printer_3 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await?;
+    let response = printer_call(&mut printer_3, printer_types::Action::Print).await?;
     info!(?response, "Response 3 received");
 
     Ok(())
