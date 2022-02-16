@@ -22,13 +22,26 @@ where
     request: PhantomData<Req>,
 }
 
+impl<D, S, Req> Clone for AllocatorClientService<D, S, Req>
+where
+    D: Clone + PartialEq + Serialize + Send + 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            allocator: self.allocator.clone(),
+            service: self.service,
+            request: self.request,
+        }
+    }
+}
+
 impl<D, S, Req> AllocatorClientService<D, S, Req>
 where
     D: Clone + PartialEq + Serialize + Send + 'static,
 {
     pub async fn new(addr: &str) -> Result<Self> {
         Ok(Self {
-            allocator: Buffer::new(MuxClient::new(addr).await?, 32),
+            allocator: Buffer::new(MuxClient::new(addr).await?, 256),
             service: Default::default(),
             request: Default::default(),
         })

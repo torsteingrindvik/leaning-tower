@@ -30,6 +30,8 @@ async fn serve_many_resources() -> Result<()> {
         Printer::new(PrinterVariant::Color),
         Printer::new(PrinterVariant::BlackAndWhite),
         Printer::new(PrinterVariant::Color),
+        Printer::new(PrinterVariant::Color),
+        Printer::new(PrinterVariant::Color),
     ];
 
     let service = AllocatorService::new(services);
@@ -52,8 +54,8 @@ async fn main() -> Result<()> {
     info!("Running server");
 
     let (single_result, multi_result) = tokio::join!(serve_one_resource(), serve_many_resources());
-    let _ = single_result.unwrap();
-    let _ = multi_result.unwrap();
+    let _ = single_result?;
+    let _ = multi_result?;
 
     Ok(())
 }

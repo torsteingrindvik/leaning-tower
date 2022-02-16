@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use examples_lib::printer_types;
 use leaning_tower::{allocator_client::AllocatorClientService, mux_client::MuxClient};
@@ -51,22 +53,30 @@ async fn use_single_resource_server() -> Result<()> {
 }
 
 async fn use_many_resources_server() -> Result<()> {
-    let mut service = AllocatorClientService::new("0.0.0.0:1235").await?;
+    let service = AllocatorClientService::new("0.0.0.0:1235").await?;
 
-    let mut printer_1 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await?;
-    let response = printer_call(&mut printer_1, printer_types::Action::Print).await?;
-    info!(?response, "Response 1 received");
-    drop(printer_1);
+    let mut handles = vec![];
 
-    let mut printer_2 =
-        allocator_call(&mut service, printer_types::PrinterVariant::BlackAndWhite).await?;
-    let response = printer_call(&mut printer_2, printer_types::Action::Print).await?;
-    info!(?response, "Response 2 received");
-    drop(printer_2);
+    for idx in 1..=50 {
+        for variant in [
+            printer_types::PrinterVariant::Color,
+            printer_types::PrinterVariant::BlackAndWhite,
+        ] {
+            let mut service_clone = service.clone();
+            handles.push(tokio::spawn(async move {
+                let mut color_printer = allocator_call(&mut service_clone, variant).await.unwrap();
+                let response = printer_call(&mut color_printer, printer_types::Action::Print)
+                    .await
+                    .unwrap();
+                info!(?idx, ?response, "Response received");
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }));
+        }
+    }
 
-    let mut printer_3 = allocator_call(&mut service, printer_types::PrinterVariant::Color).await?;
-    let response = printer_call(&mut printer_3, printer_types::Action::Print).await?;
-    info!(?response, "Response 3 received");
+    for handle in handles {
+        handle.await?;
+    }
 
     Ok(())
 }
