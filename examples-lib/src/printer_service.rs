@@ -24,10 +24,6 @@ impl Describable<PrinterVariant> for Printer {
     fn describe(&self) -> PrinterVariant {
         self.variant
     }
-
-    // fn matches(description: &PrinterVariant, request: &PrinterVariant) -> bool {
-    //     description == request
-    // }
 }
 
 impl Service<Action> for Printer {
