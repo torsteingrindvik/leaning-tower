@@ -6,7 +6,10 @@ pub struct Request<T> {
     tag: usize,
 }
 
-impl<T> Request<T> where T: Clone {
+impl<T> Request<T>
+where
+    T: Clone,
+{
     pub fn new(request: T) -> Self {
         Self {
             inner: request,

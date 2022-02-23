@@ -10,9 +10,9 @@ use futures_core::Future;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::{AcquireError, OwnedSemaphorePermit, Semaphore};
 use tower::{buffer::Buffer, Service};
-use tracing::{error, info, info_span, Instrument};
+use tracing::{debug, error, info_span, Instrument};
 
-use crate::{mux_server::MuxServer, resource_filter::Describable, shared};
+use crate::{mux_server, resource_filter::Describable};
 
 pub struct Resource<S, Req, D>
 where
@@ -159,7 +159,8 @@ where
     S::Error: Send + Sync + Into<tower::BoxError>,
     D: Debug + Send + Clone + PartialEq + Sync + 'static,
 {
-    type Response = shared::Port;
+    // The port where the allocated service waits for a connection.
+    type Response = u16;
     type Error = AllocatorError;
 
     #[allow(clippy::type_complexity)]
@@ -189,7 +190,6 @@ where
 
         let id = self.num_times_called;
         let label = format!("#{id}-{:?}", request);
-        // let label_move = label.clone();
 
         Box::pin(
             async move {
@@ -198,17 +198,16 @@ where
                 } else {
                     match futures::future::select_ok(matching_services).await {
                         Ok(((resource, semaphore_permit), _)) => {
-                            // TODO: Cycle these
-                            // let port = 2345;
-                            let (handle, port) = match MuxServer::once("0.0.0.0:0", resource).await {
+                            let (handle, port) = match mux_server::once("0.0.0.0:0", resource).await
+                            {
                                 Ok((handle, port)) => (handle, port),
-                                Err(e) => todo!(),
+                                Err(e) => todo!("Handle server error {:?}", e),
                             };
 
                             tokio::spawn(async move {
                                 match handle.await {
-                                    Ok(()) => info!("Donny"),
-                                    Err(_) => error!("Erriba"),
+                                    Ok(()) => debug!("Donny"),
+                                    Err(e) => error!(?e, "Problem awaiting MuxServer"),
                                 };
                                 // This assures the semaphore was moved into this scope,
                                 // and that it drops when the work is done.

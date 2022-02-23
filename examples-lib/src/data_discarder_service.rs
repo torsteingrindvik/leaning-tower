@@ -21,9 +21,9 @@ impl DataDiscarder {
         Self {
             variant,
             slowness_ms: match variant {
-                DataDiscarderVariant::Fast => 50,
-                DataDiscarderVariant::Medium => 250,
-                DataDiscarderVariant::Slow => 750,
+                DataDiscarderVariant::Fast => 5,
+                DataDiscarderVariant::Medium => 25,
+                DataDiscarderVariant::Slow => 100,
             },
         }
     }

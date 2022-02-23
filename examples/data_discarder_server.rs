@@ -2,7 +2,7 @@ use anyhow::Result;
 use examples_lib::data_discarder_service::DataDiscarder;
 use examples_lib::data_discarder_types::DataDiscarderVariant;
 
-use leaning_tower::{allocator::AllocatorService, mux_server::MuxServer};
+use leaning_tower::{allocator::AllocatorService, mux_server};
 use tracing::{error, info, Level};
 
 async fn use_forever() -> Result<()> {
@@ -21,7 +21,7 @@ async fn use_forever() -> Result<()> {
 
     let service = AllocatorService::new(services);
 
-    let handle = MuxServer::run("0.0.0.0:1234", service).await?;
+    let handle = mux_server::run("0.0.0.0:1234", service).await?;
     info!("DataDiscarder services now being allocated on demand");
 
     let _ = handle.await?;
@@ -33,7 +33,7 @@ async fn use_forever() -> Result<()> {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .pretty()
-        .with_max_level(Level::WARN)
+        .with_max_level(Level::INFO)
         .init();
     info!("Running server");
 

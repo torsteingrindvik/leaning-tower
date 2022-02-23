@@ -73,12 +73,12 @@ where
                 let port = allocator_handle
                     .ready()
                     .await
-                    .unwrap()
+                    .map_err(|e| anyhow::anyhow!(e))?
                     .call(request)
                     .await
-                    .unwrap();
+                    .map_err(|e| anyhow::anyhow!(e))?;
 
-                let client = MuxClient::new(&format!("0.0.0.0:{port}")).await.unwrap();
+                let client = MuxClient::new(&format!("0.0.0.0:{port}")).await?;
                 Ok(client)
             }
             .instrument(info_span!("allocator-client-fut")),

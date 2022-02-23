@@ -1,8 +1,7 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use examples_lib::data_discarder_types;
 use leaning_tower::{allocator_client::AllocatorClientService, mux_client::MuxClient};
+use rand::Rng;
 use tower::{Service, ServiceExt};
 use tracing::{error, info};
 
@@ -39,6 +38,14 @@ async fn allocator_call(
         .map_err(|e| anyhow::anyhow!(e))?)
 }
 
+fn random_payload() -> Vec<u8> {
+    let payload_size = rand::thread_rng().gen_range(10..=500);
+    let mut payload = Vec::with_capacity(payload_size);
+    payload.fill(rand::thread_rng().gen());
+
+    payload
+}
+
 async fn use_forever() -> Result<()> {
     let allocator = AllocatorClientService::new("0.0.0.0:1234").await?;
 
@@ -67,14 +74,23 @@ async fn use_forever() -> Result<()> {
                         Err(e) => return Err(e),
                     };
 
-                    let response = discarder_call(
-                        &mut discarder,
-                        data_discarder_types::Action { payload: vec![] }, // todo add
-                    )
-                    .await
-                    .unwrap();
+                    let mut rounds = 0;
+                    let response = loop {
+                        let response = discarder_call(
+                            &mut discarder,
+                            data_discarder_types::Action {
+                                payload: random_payload(),
+                            },
+                        )
+                        .await
+                        .unwrap();
 
-                    // info!(?idx, ?response, "Response received");
+                        rounds += 1;
+                        if rounds == 100 {
+                            break response;
+                        }
+                    };
+
                     Ok(response)
                 }));
             }

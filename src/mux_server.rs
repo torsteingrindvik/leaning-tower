@@ -1,22 +1,17 @@
 use std::{
-    error::Error,
-    fmt::Display,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
 
 use anyhow::Result;
-use async_bincode::{AsyncBincodeStream, AsyncDestination};
+use async_bincode::AsyncBincodeStream;
 use futures::Future;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    task::JoinHandle,
-};
+use tokio::{net::TcpListener, task::JoinHandle};
 use tokio_tower::multiplex;
 use tower::{buffer::Buffer, Service};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::tagged;
 
@@ -58,26 +53,11 @@ where
     }
 }
 
-pub struct MuxServer<S, Req>
-where
-    S: Service<Req>,
-    S::Response: Serialize,
-    S::Future: Send + 'static,
-    Req: Send + Clone + DeserializeOwned + 'static,
-{
-    #[allow(clippy::type_complexity)]
-    server: multiplex::Server<
-        AsyncBincodeStream<
-            TcpStream,
-            tagged::Request<Req>,
-            tagged::Response<<S as Service<Req>>::Response>,
-            AsyncDestination,
-        >,
-        Detagger<S>,
-    >,
-}
-
-impl<S, Req> MuxServer<S, Req>
+/// Run a multiplexed server for a single connection.
+/// The service will be available on the bind address provided.
+///
+/// The task will be alive as long as the connection to the bind address is kept alive.
+pub async fn once<S, Req>(bind: &str, service: S) -> Result<(JoinHandle<()>, u16)>
 where
     S: Service<Req> + Send + 'static,
     S::Response: Serialize + Send,
@@ -85,70 +65,81 @@ where
     S::Error: Send + Sync + Into<tower::BoxError> + std::fmt::Debug,
     Req: Clone + Send + DeserializeOwned + 'static,
 {
-    pub async fn once(bind: &str, service: S) -> Result<(JoinHandle<()>, u16)> {
-        let rx = TcpListener::bind(bind).await?;
-        let port = rx.local_addr()?.port();
+    let rx = TcpListener::bind(bind).await?;
+    let port = rx.local_addr()?.port();
 
-        let handle = tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
+        // This ensure that if the client left, we won't hold onto the
+        // semaphore for more than this amount of seconds.
+        //
+        // TODO: Configurable timeout.
+        // Or let the caller handle timeouts?
+        let timeout_fut = tokio::time::timeout(Duration::from_secs(5), rx.accept());
+
+        let rx = match timeout_fut.await {
+            Ok(Ok((rx, _))) => rx,
+            Ok(Err(e)) => {
+                error!("Problem setting up server: {:?}", e);
+                return;
+            }
+            Err(e) => {
+                error!("Could not accept in time: {:?}", e);
+                return;
+            }
+        };
+        info!(%port, "Client connected, setting up server");
+
+        let rx = AsyncBincodeStream::from(rx).for_async();
+        let server = multiplex::Server::new(rx, Detagger::new(service));
+        match server.await {
+            Ok(_) => debug!("Done"),
+            Err(e) => error!(?e, "Problem in multiplexed server"),
+        }
+    });
+
+    Ok((handle, port))
+}
+
+/// Run a TCP listener on the given bind address.
+/// Connections will be served the given service on a multiplexed transport.
+pub async fn run<S, Req>(bind: &str, service: S) -> Result<JoinHandle<()>>
+where
+    S: Service<Req> + Send + 'static,
+    S::Response: Serialize + Send,
+    S::Future: Send + 'static,
+    S::Error: Send + Sync + Into<tower::BoxError> + std::fmt::Debug,
+    Req: Clone + Send + DeserializeOwned + 'static,
+{
+    let rx = TcpListener::bind(bind).await?;
+    let service = Buffer::new(service, 32);
+
+    let handle = tokio::spawn(async move {
+        loop {
+            let service_for_iteration = service.clone();
+
+            // TODO: Timeout fut
             // This ensure that if the client left, we won't hold onto the
             // semaphore for more than this amount of seconds.
-            let timeout_fut = tokio::time::timeout(Duration::from_secs(5), rx.accept());
+            // let timeout_fut =
+            //     tokio::time::timeout(Duration::from_secs(5), server);
 
-            let rx = match timeout_fut.await {
-                Ok(Ok((rx, _))) => rx,
-                Ok(Err(e)) => {
-                    error!("Problem setting up server: {:?}", e);
-                    return;
-                }
+            let (rx, _) = match rx.accept().await {
+                Ok(rx) => rx,
                 Err(e) => {
-                    error!("Could not accept in time: {:?}", e);
+                    error!(?e, "Problem accepting on TCP listener");
                     return;
                 }
             };
-            info!(%port, "Client connected, setting up server");
-
             let rx = AsyncBincodeStream::from(rx).for_async();
-            let server = multiplex::Server::new(rx, Detagger::new(service));
+
+            // TODO: We want to spawn a task for this right?
+            let server = multiplex::Server::new(rx, Detagger::new(service_for_iteration));
             match server.await {
-                Ok(_) => info!("Done"),
-                Err(e) => error!(?e, "Erry"),
+                Ok(_) => debug!("Done"),
+                Err(e) => error!(?e, "Problem in multiplexed server"),
             }
-        });
+        }
+    });
 
-        Ok((handle, port))
-    }
-
-    pub async fn run(bind: &str, service: S) -> Result<JoinHandle<()>> {
-        let rx = TcpListener::bind(bind).await?;
-        let service = Buffer::new(service, 32);
-
-        let handle = tokio::spawn(async move {
-            loop {
-                let service_for_iteration = service.clone();
-
-                // TODO: Timeout fut
-                // This ensure that if the client left, we won't hold onto the
-                // semaphore for more than this amount of seconds.
-                // let timeout_fut =
-                //     tokio::time::timeout(Duration::from_secs(5), server);
-
-                let (rx, _) = match rx.accept().await {
-                    Ok(rx) => rx,
-                    Err(e) => {
-                        error!(?e, "Error :(");
-                        return;
-                    }
-                };
-                let rx = AsyncBincodeStream::from(rx).for_async();
-
-                let server = multiplex::Server::new(rx, Detagger::new(service_for_iteration));
-                match server.await {
-                    Ok(_) => info!("Done"),
-                    Err(e) => error!(?e, "Erry"),
-                }
-            }
-        });
-
-        Ok(handle)
-    }
+    Ok(handle)
 }

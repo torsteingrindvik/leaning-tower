@@ -10,15 +10,14 @@ anyhow = "1.0.53"
 async-bincode = "0.6.1"
 futures = "0.3.19"
 futures-core = "0.3.19"
-pin-project-lite = "0.2.8"
 serde = { version = "1.0.136", features = [ "derive" ] }
 slab = "0.4.5"
 tokio = { version = "1.16.1", features = [ "full" ] }
 tokio-tower = "0.6.0"
-tokio-util = "0.6.9"
 tower = { version = "0.4.11", features = [ "full" ] }
 tracing = "0.1.29"
-tracing-subscriber = "0.3.7"
 
 [dev-dependencies]
+tracing-subscriber = "0.3.7"
 examples-lib = { path = "examples-lib" }
+rand = "0.8"

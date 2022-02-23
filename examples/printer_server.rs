@@ -1,6 +1,6 @@
 use anyhow::Result;
 use examples_lib::{printer_service::Printer, printer_types::PrinterVariant};
-use leaning_tower::{allocator::AllocatorService, mux_server::MuxServer};
+use leaning_tower::{allocator::AllocatorService, mux_server};
 use tracing::{info, Level};
 
 // Serve a single printer with colors at this endpoint.
@@ -8,7 +8,7 @@ async fn serve_one_resource() -> Result<()> {
     // The user's service.
     let service = Printer::new(PrinterVariant::Color);
 
-    let handle = MuxServer::run("0.0.0.0:1234", service).await?;
+    let handle = mux_server::run("0.0.0.0:1234", service).await?;
     info!("Letting the one resource printer service run forever");
 
     let _ = handle.await?;
@@ -36,7 +36,7 @@ async fn serve_many_resources() -> Result<()> {
 
     let service = AllocatorService::new(services);
 
-    let handle = MuxServer::run("0.0.0.0:1235", service).await?;
+    let handle = mux_server::run("0.0.0.0:1235", service).await?;
     info!("Letting the many resources printers allocator run forever");
 
     let _ = handle.await?;
