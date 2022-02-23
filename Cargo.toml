@@ -2,8 +2,15 @@
 name = "leaning-tower"
 version = "0.1.0"
 edition = "2021"
+authors = ["Torstein Grindvik <torstein.grindvik@nordicsemi.no>"]
+readme = "README.md"
+description = "Exclusive use of services managed by an allocator, served over multiplexed transports"
+repository = "https://github.com/torsteingrindvik/leaning-tower"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["tokio", "tower", "asynchronous"]
+categories = ["asynchronous"]
+
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.53"
