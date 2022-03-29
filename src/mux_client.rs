@@ -16,6 +16,7 @@ use crate::{slab_store, tagged};
 
 /// Multiplexing client which automatically tags requests and de-tags responses.
 /// Must target a multiplexing server.
+#[derive(Debug)]
 pub struct MuxClient<Req, Resp>
 where
     Req: Serialize,

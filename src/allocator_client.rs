@@ -22,6 +22,20 @@ where
     request: PhantomData<Req>,
 }
 
+impl<D, S, Req> Debug for AllocatorClientService<D, S, Req>
+where
+    D: Clone + PartialEq + Serialize + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AllocatorClientService")
+            // Too much bounds juggling for now
+            .field("allocator", &"{no debug impl}")
+            .field("service", &self.service)
+            .field("request", &self.request)
+            .finish()
+    }
+}
+
 impl<D, S, Req> Clone for AllocatorClientService<D, S, Req>
 where
     D: Clone + PartialEq + Serialize + Send + 'static,
