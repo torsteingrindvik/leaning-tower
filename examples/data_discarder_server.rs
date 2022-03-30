@@ -1,8 +1,7 @@
-use anyhow::Result;
-use examples_lib::data_discarder_service::DataDiscarder;
-use examples_lib::data_discarder_types::DataDiscarderVariant;
-
-use leaning_tower::{allocator::AllocatorService, mux_server};
+use examples_lib::{
+    data_discarder_service::DataDiscarder, data_discarder_types::DataDiscarderVariant,
+};
+use leaning_tower::{allocator::AllocatorService, error::Result, mux_server};
 use tracing::{error, info, Level};
 
 async fn use_forever() -> Result<()> {

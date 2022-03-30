@@ -3,16 +3,15 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::Result;
 use async_bincode::{AsyncBincodeStream, AsyncDestination};
 use futures::Future;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::net::TcpStream;
 use tokio_tower::multiplex::{self, MultiplexTransport};
-use tower::Service;
+use tower::{BoxError, Service};
 use tracing::error;
 
-use crate::{slab_store, tagged};
+use crate::{error::Result, slab_store, tagged};
 
 /// Multiplexing client which automatically tags requests and de-tags responses.
 /// Must target a multiplexing server.
@@ -43,7 +42,7 @@ where
     Req: Serialize + Send + 'static + Clone,
     Resp: DeserializeOwned + Send + 'static,
 {
-    pub async fn new(addr: &str) -> anyhow::Result<Self> {
+    pub async fn new(addr: &str) -> Result<Self> {
         let tx = TcpStream::connect(addr).await?;
         let tx = AsyncBincodeStream::from(tx).for_async();
 
@@ -62,13 +61,13 @@ where
     Resp: DeserializeOwned + Send + 'static,
 {
     type Response = Resp;
-    type Error = tower::BoxError;
+    type Error = BoxError;
 
     #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.client.poll_ready(cx)
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.client.poll_ready(cx).map_err(Into::into)
     }
 
     fn call(&mut self, request: Req) -> Self::Future {
