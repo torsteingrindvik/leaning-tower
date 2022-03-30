@@ -4,7 +4,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
 use async_bincode::AsyncBincodeStream;
 use futures::Future;
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,7 +12,7 @@ use tokio_tower::multiplex;
 use tower::{buffer::Buffer, Service};
 use tracing::{debug, error, info};
 
-use crate::tagged;
+use crate::{error::Result, tagged};
 
 // TODO: Could be a layer? Probably more idiomatic.
 pub struct Detagger<S> {
@@ -35,9 +34,10 @@ where
     type Response = tagged::Response<S::Response>;
     type Error = S::Error;
     #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future =
+        Pin<Box<dyn Future<Output = std::result::Result<Self::Response, S::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), S::Error>> {
         self.inner.poll_ready(cx)
     }
 

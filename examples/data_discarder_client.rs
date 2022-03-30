@@ -1,6 +1,7 @@
-use anyhow::Result;
 use examples_lib::data_discarder_types;
-use leaning_tower::{allocator_client::AllocatorClientService, mux_client::MuxClient};
+use leaning_tower::{
+    allocator_client::AllocatorClientService, error::Result, mux_client::MuxClient,
+};
 use rand::Rng;
 use tower::{Service, ServiceExt};
 use tracing::{error, info};
@@ -16,26 +17,14 @@ async fn discarder_call(
     service: &mut DataDiscarderService,
     request: data_discarder_types::Action,
 ) -> Result<data_discarder_types::Response> {
-    Ok(service
-        .ready()
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?
-        .call(request)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?)
+    Ok(service.ready().await?.call(request).await?)
 }
 
 async fn allocator_call(
     service: &mut DataDiscarderAllocatorService,
     request: data_discarder_types::DataDiscarderVariant,
 ) -> Result<DataDiscarderService> {
-    Ok(service
-        .ready()
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?
-        .call(request)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?)
+    Ok(service.ready().await?.call(request).await?)
 }
 
 fn random_payload() -> Vec<u8> {

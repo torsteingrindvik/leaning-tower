@@ -1,6 +1,5 @@
-use anyhow::Result;
 use examples_lib::{printer_service::Printer, printer_types::PrinterVariant};
-use leaning_tower::{allocator::AllocatorService, mux_server};
+use leaning_tower::{allocator::AllocatorService, error::Result, mux_server};
 use tracing::{info, Level};
 
 // Serve a single printer with colors at this endpoint.

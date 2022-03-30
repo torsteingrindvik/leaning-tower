@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::{
     fmt::Debug,
     marker::PhantomData,
@@ -8,9 +7,10 @@ use std::{
 
 use futures_core::Future;
 use serde::{de::DeserializeOwned, Serialize};
-use tower::{buffer::Buffer, Service, ServiceExt};
+use tower::{buffer::Buffer, BoxError, Service, ServiceExt};
 use tracing::{info_span, Instrument};
 
+use crate::error::Result;
 use crate::mux_client::MuxClient;
 
 pub struct AllocatorClientService<D, S, Req>
@@ -70,12 +70,12 @@ where
     Req: Serialize + Send + Clone + 'static,
 {
     type Response = MuxClient<Req, S::Response>;
-    type Error = anyhow::Error;
+    type Error = BoxError;
 
     #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response>> + Send>>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Ok(()))
     }
 
@@ -84,13 +84,7 @@ where
 
         Box::pin(
             async move {
-                let port = allocator_handle
-                    .ready()
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?
-                    .call(request)
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?;
+                let port = allocator_handle.ready().await?.call(request).await?;
 
                 let client = MuxClient::new(&format!("0.0.0.0:{port}")).await?;
                 Ok(client)
