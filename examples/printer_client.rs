@@ -42,11 +42,11 @@ async fn use_single_resource_server() -> Result<()> {
 }
 
 async fn use_many_resources_server() -> Result<()> {
-    let service = AllocatorClientService::new("0.0.0.0:1235").await?;
+    let service = AllocatorClientService::new_labelled("0.0.0.0:1235", "printer-allocator").await?;
 
     let mut handles = vec![];
 
-    for idx in 1..=50 {
+    for idx in 1..=10 {
         for variant in [
             printer_types::PrinterVariant::Color,
             printer_types::PrinterVariant::BlackAndWhite,
@@ -54,14 +54,18 @@ async fn use_many_resources_server() -> Result<()> {
             let mut service_clone = service.clone();
             handles.push(tokio::spawn(async move {
                 let mut color_printer = allocator_call(&mut service_clone, variant).await.unwrap();
+                drop(service_clone);
                 let response = printer_call(&mut color_printer, printer_types::Action::Print)
                     .await
                     .unwrap();
                 info!(?idx, ?response, "Response received");
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                // tokio::time::sleep(Duration::from_millis(500)).await;
             }));
         }
     }
+
+    info!("Dropping the original client");
+    drop(service);
 
     for handle in handles {
         handle.await?;
@@ -75,7 +79,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     info!("Running client");
 
-    use_single_resource_server().await?;
+    // use_single_resource_server().await?;
 
     use_many_resources_server().await?;
 
