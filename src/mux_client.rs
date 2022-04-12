@@ -15,7 +15,6 @@ use crate::{error::Result, slab_store, tagged};
 
 /// Multiplexing client which automatically tags requests and de-tags responses.
 /// Must target a multiplexing server.
-#[derive(Debug)]
 pub struct MuxClient<Req, Resp>
 where
     Req: Serialize,
@@ -36,6 +35,18 @@ where
         tagged::Request<Req>,
     >,
     label: Option<String>,
+}
+
+impl<Req, Resp> std::fmt::Debug for MuxClient<Req, Resp>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MuxClient")
+            .field("label", &self.label)
+            .finish()
+    }
 }
 
 impl<Req, Resp> MuxClient<Req, Resp>

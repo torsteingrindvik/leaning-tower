@@ -92,7 +92,7 @@ where
         let rx = AsyncBincodeStream::from(rx).for_async();
         let server = multiplex::Server::new(rx, Detagger::new(service));
         match server.await {
-            Ok(_) => debug!("Done"),
+            Ok(_) => debug!("Done serving connection"),
             Err(e) => error!(?e, "Problem in multiplexed server"),
         }
     });
@@ -135,7 +135,7 @@ where
             // TODO: We want to spawn a task for this right?
             let server = multiplex::Server::new(rx, Detagger::new(service_for_iteration));
             match server.await {
-                Ok(_) => debug!("Done"),
+                Ok(_) => debug!("Done serving connection"),
                 Err(e) => error!(?e, "Problem in multiplexed server"),
             }
         }

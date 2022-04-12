@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use examples_lib::printer_types;
 use leaning_tower::{
     allocator_client::AllocatorClientService, error::Result, mux_client::MuxClient,
@@ -16,14 +14,19 @@ async fn printer_call(
     service: &mut PrinterService,
     request: printer_types::Action,
 ) -> Result<printer_types::Response> {
-    Ok(service.ready().await?.call(request).await?)
+    service.ready().await?.call(request).await
 }
 
 async fn allocator_call(
     service: &mut PrinterAllocatorService,
     request: printer_types::PrinterVariant,
 ) -> Result<PrinterService> {
-    Ok(service.ready().await?.call(request).await?)
+    Ok(service
+        .ready()
+        .await?
+        .call(request)
+        .await?
+        .expect("Got client"))
 }
 
 async fn use_single_resource_server() -> Result<()> {
@@ -79,7 +82,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     info!("Running client");
 
-    // use_single_resource_server().await?;
+    use_single_resource_server().await?;
 
     use_many_resources_server().await?;
 

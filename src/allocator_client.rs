@@ -17,7 +17,7 @@ pub struct AllocatorClientService<D, S, Req>
 where
     D: Clone + PartialEq + Serialize + Send + 'static,
 {
-    allocator: Buffer<MuxClient<D, u16>, D>,
+    allocator: Buffer<MuxClient<D, Option<u16>>, D>,
     label: Option<String>,
     service: PhantomData<S>,
     request: PhantomData<Req>,
@@ -89,7 +89,7 @@ where
     S::Response: DeserializeOwned + Send + 'static,
     Req: Serialize + Send + Clone + 'static,
 {
-    type Response = MuxClient<Req, S::Response>;
+    type Response = Option<MuxClient<Req, S::Response>>;
     type Error = BoxError;
 
     #[allow(clippy::type_complexity)]
@@ -119,7 +119,11 @@ where
                     };
 
                     let response = match ready.call(request).await {
-                        Ok(port) => port,
+                        Ok(Some(port)) => port,
+                        Ok(None) => {
+                            debug!("No matching resource on allocator, can't make a client!");
+                            return Ok(None);
+                        },
                         Err(e) => {
                             warn!("Did not get allocated resource on port: {e:?}");
                             return Err(e);
@@ -134,7 +138,7 @@ where
                 let client = MuxClient::new_impl(&format!("0.0.0.0:{port}"), label).await?;
 
                 debug!("Client allocated, returning");
-                Ok(client)
+                Ok(Some(client))
             }
             .instrument(info_span!("allocator-client-fut")),
         )

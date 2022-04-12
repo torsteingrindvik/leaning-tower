@@ -100,7 +100,9 @@ async fn work() -> Result<(), BoxError> {
                 .unwrap()
                 .call(index_mod)
                 .await
+                .unwrap()
                 .unwrap();
+
             let response = svc
                 .ready()
                 .await
@@ -131,7 +133,7 @@ async fn work_intricate() -> Result<(), BoxError> {
         .for_each_concurrent(None, |(index, allocator_map)| async move {
             let index_mod = index % MODULO;
 
-            let ((mut svc, addr), _) = select_ok(allocator_map.iter().map(|(addr, allocator)| {
+            let ((svc, addr), _) = select_ok(allocator_map.iter().map(|(addr, allocator)| {
                 Box::pin(async move {
                     let svc = allocator
                         .clone()
@@ -149,6 +151,7 @@ async fn work_intricate() -> Result<(), BoxError> {
             .unwrap();
 
             let response = svc
+                .unwrap()
                 .ready()
                 .await
                 .unwrap()
