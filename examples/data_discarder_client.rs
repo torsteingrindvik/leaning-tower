@@ -17,14 +17,19 @@ async fn discarder_call(
     service: &mut DataDiscarderService,
     request: data_discarder_types::Action,
 ) -> Result<data_discarder_types::Response> {
-    Ok(service.ready().await?.call(request).await?)
+    service.ready().await?.call(request).await
 }
 
 async fn allocator_call(
     service: &mut DataDiscarderAllocatorService,
     request: data_discarder_types::DataDiscarderVariant,
 ) -> Result<DataDiscarderService> {
-    Ok(service.ready().await?.call(request).await?)
+    Ok(service
+        .ready()
+        .await?
+        .call(request)
+        .await?
+        .expect("Got client"))
 }
 
 fn random_payload() -> Vec<u8> {

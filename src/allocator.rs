@@ -130,7 +130,6 @@ where
 
 #[derive(Debug)]
 pub enum AllocatorError {
-    NoMatchingResource,
     SemaphoreProblem,
     ListenerProblem(String),
 }
@@ -159,8 +158,9 @@ where
     S::Error: Send + Sync + Into<tower::BoxError>,
     D: Debug + Send + Clone + PartialEq + Sync + 'static,
 {
-    // The port where the allocated service waits for a connection.
-    type Response = u16;
+    // The port where the allocated service waits for a connection,
+    // or `None` if there were no matching resources.
+    type Response = Option<u16>;
     type Error = AllocatorError;
 
     #[allow(clippy::type_complexity)]
@@ -194,7 +194,7 @@ where
         Box::pin(
             async move {
                 if matching_services.is_empty() {
-                    Err(AllocatorError::NoMatchingResource)
+                    Ok(None)
                 } else {
                     match futures::future::select_ok(matching_services).await {
                         Ok(((resource, semaphore_permit), _)) => {
@@ -206,7 +206,7 @@ where
 
                             tokio::spawn(async move {
                                 match handle.await {
-                                    Ok(()) => debug!("Donny"),
+                                    Ok(()) => debug!("Session done"),
                                     Err(e) => error!(?e, "Problem awaiting MuxServer"),
                                 };
                                 // This assures the semaphore was moved into this scope,
@@ -214,7 +214,7 @@ where
                                 drop(semaphore_permit)
                             });
 
-                            Ok(port)
+                            Ok(Some(port))
                         }
                         Err(e) => Err(e),
                     }
